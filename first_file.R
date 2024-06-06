@@ -4,107 +4,134 @@ library(ggfortify)
 library(biomaRt)
 library(matrixStats)
 
-# Read the data
-data <- read.table("GSE208783_series_matrix.txt", header = TRUE, fill = TRUE, sep = "\t", skip = 40)
+# # Read the data from the series matrix file
+# data <- read.table("GSE208783_series_matrix.txt", header = TRUE, fill = TRUE, sep = "\t", skip = 40)
 
-# Process the data 
-data <- t(data)
-identical_columns <- c()
+# # Transpose the data
+# data <- t(data)
+# identical_columns <- c()
 
-for (i in seq_len(ncol(data))) {
-  current_column <- data[-1, i]
+# # Identify columns where all values are identical
+# for (i in seq_len(ncol(data))) {
+#   current_column <- data[-1, i]
   
-  # Clean the column
-  current_column_processed <- tolower(trimws(current_column))
-  actual_data <- current_column_processed[!grepl("^!", current_column_processed) & current_column_processed != ""]
+#   # Clean the column
+#   current_column_processed <- tolower(trimws(current_column))
+#   actual_data <- current_column_processed[!grepl("^!", current_column_processed) & current_column_processed != ""]
   
-  # Check if all values in the column are identical
-  if (length(unique(actual_data)) == 1) {
-    identical_columns <- c(identical_columns, i)
-  }
+#   # Check if all values in the column are identical
+#   if (length(unique(actual_data)) == 1) {
+#     identical_columns <- c(identical_columns, i)
+#   }
+# }
+
+# # Remove columns with identical values
+# data <- data[, -identical_columns]
+
+# # Write the processed data to a csv file
+# write.table(data, "processed_data_processec.txt", sep = " ", quote = FALSE, row.names = FALSE)
+
+col_data <- read.csv('processed_data.csv', header = TRUE, sep = ",", stringsAsFactors = FALSE)
+CountsDataFrame <- read.table("GSE208783_gba_feature_counts_rnaseq_april2021.txt", header = TRUE, sep = "\t", row.names = 1)
+
+# Assign temporary variable names for counts data and processed column data
+tmp1 <- CountsDataFrame
+pcaData1 <- as.data.frame(t(tmp1))
+
+# Add sample IDs as a column
+pcaData1$Sample_ID <- rownames(pcaData1) # change 'Sample_ID' to the name of your sample ID column
+
+#col_data$Sample_ID <- as.character(col_data$Sample_ID)
+#pcaData1$Sample_ID <- as.character(pcaData1$Sample_ID)
+# Ensure Sample_ID columns are character type
+# col_data$Sample_ID <- as.character(col_data$Sample_ID)
+# pcaData1$Sample_ID <- as.character(pcaData1$Sample_ID)
+
+# Check for the existence of Sample_ID columns
+if (!("Sample_ID" %in% colnames(col_data))) {
+  stop("Sample_ID column not found in col_data")
+}
+if (!("Sample_ID" %in% colnames(pcaData1))) {
+  stop("Sample_ID column not found in pcaData1")
 }
 
-data <- data[, -identical_columns]
-write.csv(data, "GSE208783_series_matrix_processed.csv", row.names = FALSE, quote = FALSE)
+# Verify data frame structure before merging
+print("Structure of col_data:")
+print(str(col_data))
+print("Structure of pcaData1:")
+print(str(pcaData1))
 
-# Read the processed series matrix
-col_data <- read.csv("GSE208783_series_matrix_processed.csv")
 
-# Read the feature counts data
-counts_data <- read.table("GSE208783_gba_feature_counts_rnaseq_april2021.txt", header = TRUE, sep = "\t", quote = "", comment.char = "")
+pcaData1 <- merge(pcaData1, ColData, by = "Sample_ID")
 
-# Remove gene symbol column and transpose counts data
-gene_symbols <- counts_data$`Gene symbol`
-counts_data <- counts_data[,-1]
-rownames(counts_data) <- gene_symbols
+# Set row names to sample IDs
+rownames(pcaData1) <- pcaData1$Sample_ID
 
-# Transpose counts_data
-counts_data <- t(counts_data)
+# Perform PCA on the processed data
+pca_res1 <- prcomp(pcaData1[, 2:nrow(tmp1)], scale. = TRUE)
 
-# Extract relevant columns from col_data
-sample_info <- col_data[2:8, ]  # Adjust rows to match your actual data structure
-colnames(sample_info) <- col_data[1, ]  # Use the first row as column names
-sample_info <- sample_info[-1, ]  # Remove the first row
+# Specify the parameter for labeling the PCA plot
+c <- 'RIN' # change c to the parameter you want to label the PCA with
 
-# Extract sample IDs from processed data and set them as rownames
-sample_info <- as.data.frame(t(sample_info))
-sample_ids <- rownames(sample_info)
+# Plot PCA results for the first two principal components
+autoplot(pca_res1, x = 1, y = 2, data = pcaData1, colour = c, label = TRUE, size = 0.3)
 
-# Match sample identifiers with counts_data columns
-colnames(counts_data) <- sample_ids
+# Plot PCA results for the third and fourth principal components
+autoplot(pca_res1, x = 3, y = 4, data = pcaData1, colour = c, label = TRUE, size = 0.3)
 
-# Merge counts_data with sample_info
-merged_data <- merge(as.data.frame(counts_data), sample_info, by = "row.names")
+# Assign counts data to a variable
+cts <- CountsDataFrame
 
-# Prepare data for PCA
-pca_data <- merged_data[, 2:(ncol(counts_data) + 1)]
-pca_data <- as.data.frame(pca_data)
-pca_data <- sapply(pca_data, as.numeric)  # Convert to numeric
+# Assign column data to a variable
+cold1 <- ColData
 
-# Perform PCA
-pca_result <- prcomp(pca_data, scale. = TRUE)
+# Subset column data to match the sample IDs in counts data
+cold1 <- subset(cold1, cold1$BUID %in% colnames(cts))
 
-# Label the PCA plot with 'disease' column
-disease_col <- merged_data$disease
-autoplot(pca_result, data = merged_data, colour = 'disease_col', label = TRUE, size = 0.3)
-autoplot(pca_result, x = 3, y = 4, data = merged_data, colour = 'disease_col', label = TRUE, size = 0.3)
+# Order counts data based on sample IDs in column data
+cts <- cts[, as.character(cold1$BUID)]
+cts <- cts[, order(cold1$BUID)]
 
-# Prepare data for edgeR analysis
-cts <- as.data.frame(counts_data)
-col_data <- col_data[-1,]  # Remove the first row with headers
-col_data <- subset(col_data, col_data$BUID %in% colnames(cts))
+# Order column data based on sample IDs
+cold1 <- cold1[order(cold1$BUID),]
 
-# Order counts and col_data based on sample IDs
-cts <- cts[, as.character(col_data$BUID)]
-cts <- cts[, order(col_data$BUID)]
-col_data <- col_data[order(col_data$BUID), ]
+# Check if row names of column data match column names of counts data
+nrow(cold1) == sum(cold1$BUID == colnames(cts))
 
-# Check rownames
-stopifnot(rownames(col_data) == colnames(cts))
-
-# Create DGEList object
-y <- DGEList(counts = cts, group = col_data$condition)
+# Create DGEList object for differential expression analysis
+y <- DGEList(counts = cts, group = cold1$condition) # change 'condition' to the name of your condition column
 
 # Filter genes by expression
 keep <- filterByExpr(y)
 y <- y[keep, , keep.lib.sizes = FALSE]
+
+# Update library sizes
 y$samples$lib.size <- colSums(y$counts)
+
+# Calculate normalization factors
 y <- calcNormFactors(y)
 
 # Create normalized counts matrix
-cts_norm <- as.data.frame(cpm(y, log = FALSE))
+cts1 <- as.data.frame(cpm(y, log = FALSE))
 
-# Model matrix for differential expression analysis
-dsgn <- model.matrix(~ RIN + batch + sex + condition, data = col_data)
+# Create model matrix for differential expression analysis
+dsgn <- model.matrix(~RIN + batch + sex + condition, data = cold1)
+
+# Estimate dispersions
 y <- estimateDisp(y, dsgn, robust = TRUE)
 
-# Fit the model and perform likelihood ratio test
+# If desired, run the next code to see if the different coefficients correlate with each other
+# logFC <- predFC(y, dsgn, prior.count = 1, dispersion = 0.05)
+# cor(logFC)
+# plotBCV(y)
+
+# Display the head of the design matrix
+head(dsgn)
+
+# Change the coefficient to the coefficient that interests you (the number of the column in the design matrix)
 fit <- glmQLFit(y, dsgn, robust = TRUE)
-lrt <- glmLRT(fit, coef = 5)
+lrt1 <- glmLRT(fit, coef = 5)
 
 # Extract top differentially expressed genes
-top_genes <- as.data.frame(topTags(lrt, adjust.method = 'fdr', n = nrow(cts_norm)))
-top_genes$transcript <- rownames(top_genes)
-
-# Print the top differentially expressed genes
-print(head(top_genes))
+sgGens <- as.data.frame(topTags(lrt1, adjust.method = 'fdr', n = nrow(cts1)))
+sgGens$transcript <- rownames(sgGens)
