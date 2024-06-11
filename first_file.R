@@ -5,35 +5,8 @@ library(biomaRt)
 library(matrixStats)
 #setwd("MyProjects/LearningR")
 
-# # Read the data from the series matrix file
-data <- read.table("GSE208784_series_matrix.txt", header = TRUE, fill = TRUE, sep = "\t", skip = 40)
-
-# # Transpose the data
-data <- t(data)
-identical_columns <- c()
-
-# # Identify columns where all values are identical
-for (i in seq_len(ncol(data))) {
-  current_column <- data[-1, i]
-  
-#   # Clean the column
- current_column_processed <- tolower(trimws(current_column))
- actual_data <- current_column_processed[!grepl("^!", current_column_processed) & current_column_processed != ""]
-  
-#   # Check if all values in the column are identical
- if (length(unique(actual_data)) == 1) {
-   identical_columns <- c(identical_columns, i)
- }
- }
-
-# # Remove columns with identical values
-data <- data[, -identical_columns]
-
-# # Write the processed data to a csv file
-write.table(data, "processed_data.txt", sep = " ", quote = FALSE, row.names = FALSE)
-
-ColData <- read.csv('processed_data.csv', header = TRUE, sep = ",", stringsAsFactors = FALSE)
-CountsDataFrame <- read.table("processed_data.txt", header = TRUE, sep = "\t", row.names = 1)
+ColData <- read.table('processed_data.txt', header = TRUE, sep = "\t")
+CountsDataFrame <- read.table("GSE208781_feature_counts_gba_June_2021.txt", header = TRUE, sep = "\t", row.names = 1)
 
 CountsDataFrame<-CountsDataFrame[rowSums(CountsDataFrame)>0,]
 # Assign temporary variable names for counts data and processed column data
