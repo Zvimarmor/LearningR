@@ -5,8 +5,8 @@ library(biomaRt)
 library(matrixStats)
 #setwd("MyProjects/LearningR")
 
-ColData <- read.table('processed_data.txt', header = TRUE, sep = "\t")
-CountsDataFrame <- read.table("GSE208781_feature_counts_gba_June_2021.txt", header = TRUE, sep = "\t", row.names = 1)
+ColData <- read.table('processed_data_combined.txt', header = TRUE, sep = "\t")
+CountsDataFrame <- read.table("gene_data_combined.txt", header = TRUE, sep = "\t", row.names = 1)
 
 CountsDataFrame<-CountsDataFrame[rowSums(CountsDataFrame)>0,]
 # Assign temporary variable names for counts data and processed column data
@@ -90,4 +90,6 @@ lrt1 <- glmLRT(fit, coef = 2)
 # Extract top differentially expressed genes
 sgGens <- as.data.frame(topTags(lrt1, adjust.method = 'fdr', n = nrow(cts1)))
 sgGens$transcript <- rownames(sgGens)
+
+write.csv(sgGens, file = "differentially_expressed_genes_all.csv", row.names = FALSE)
 
