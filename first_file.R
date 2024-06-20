@@ -3,6 +3,7 @@ library(ggplot2)
 library(ggfortify)
 library(biomaRt)
 library(matrixStats)
+library(MASS)
 #setwd("MyProjects/LearningR")
 
 ColData <- read.table('processed_data_combined.txt', header = TRUE, sep = "\t")
@@ -25,7 +26,7 @@ rownames(pcaData1) <- pcaData1$Sample_ID
 pca_res1 <- prcomp(pcaData1[2:ncol(tmp1)], scale = TRUE)
 
 # Specify the parameter for labeling the PCA plot
-c <- "Sample_characteristics_ch1.4"
+c <- "Sample_disease"
 
 # Plot PCA results for the first two principal components
 autoplot(pca_res1, x = 1, y = 2, data = pcaData1, colour = c, label = F, size = 3)
@@ -54,7 +55,7 @@ cold1 <- cold1[order(cold1$Sample_ID),]
 nrow(cold1) == sum(cold1$Sample_ID == colnames(cts))
 
 # Create DGEList object for differential expression analysis
-y <- DGEList(counts = cts, group = cold1$Sample_characteristics_ch1.4) # change 'condition' to the name of your condition column
+y <- DGEList(counts = cts, group = cold1$Sample_disease) # change 'condition' to the name of your condition column
 
 # Filter genes by expression
 keep <- filterByExpr(y)
@@ -70,7 +71,7 @@ y <- calcNormFactors(y)
 cts1 <- as.data.frame(cpm(y, log = FALSE))
 
 # Create model matrix for differential expression analysis
-dsgn <- model.matrix( ~Sample_characteristics_ch1.4, data = cold1)
+dsgn <- model.matrix( ~Sample_disease, data = cold1)
 
 # Estimate dispersions
 y <- estimateDisp(y, dsgn, robust = TRUE)
